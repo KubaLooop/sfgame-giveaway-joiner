@@ -15,7 +15,7 @@ from .auth import TokenStore, ensure_valid
 from .config import Config, load_learned, save_learned
 from .detector import Detector
 from .engine import Engine
-from .irc import DEDUPE_SUFFIX, ChatEvent, parse_line, to_event
+from .irc import DEDUPE_SUFFIX, ChatEvent, parse_badges, parse_line, to_event
 from .logsetup import RawLog
 from .stats import StatsStore
 
@@ -50,10 +50,11 @@ class BotRunner(threading.Thread):
         self.stats = StatsStore()
         self.engine = Engine(cfg, self.detector, phrases.PhrasePicker(phrases.load()), on_learned=save_learned,
                              on_stat=self._persist_stat, on_win=self._persist_win)
-        self.raw = RawLog(cfg.raw_log)
+        self.raw = RawLog(cfg.raw_log, cfg.log_retention_days)
         self.sim_until = 0.0
         self._pending_confirm = ""
         self.login = ""
+        self.me = {"display": "", "color": "", "badges": []}   # jak nás vidí Twitch (z USERSTATE)
 
     # ------------------------------------------------------------ statistiky
     def _simulating(self) -> bool:
@@ -94,6 +95,7 @@ class BotRunner(threading.Thread):
             self.detector.reload_patterns()
             self.engine.phrases.set(phrases.load())
             self.raw.enabled = self.cfg.raw_log
+            self.raw.retention_days = self.cfg.log_retention_days
             self.detector.learned = load_learned()
             if not self.login:
                 self.detector.set_identity(self.cfg.watch_nick)
@@ -191,13 +193,11 @@ class BotRunner(threading.Thread):
             log.info(f"Připojeno k Twitchi jako {nick}.", **_l("info"))
         elif cmd == "JOIN" and msg.nick.lower() == nick.lower():
             log.info(f"Sleduji kanál #{self.channel}. Čekám na giveaway…", **_l("info"))
-        elif cmd == "USERSTATE" and self._pending_confirm:
-            log.info(f"✓ Twitch zprávu přijal: {pretty(self._pending_confirm)}", **_l("send"))
-            self._pending_confirm = ""
-        elif cmd == "GLOBALUSERSTATE":
-            display = msg.tags.get("display-name", "")
-            if self.login:
-                self.detector.set_identity(self.login, display)
+        elif cmd in ("USERSTATE", "GLOBALUSERSTATE"):
+            self._update_me(msg.tags, channel=(cmd == "USERSTATE"))
+            if cmd == "USERSTATE" and self._pending_confirm:
+                log.info(f"✓ Twitch zprávu přijal: {pretty(self._pending_confirm)}", **_l("send"))
+                self._pending_confirm = ""
         elif cmd == "NOTICE" and ("authentication failed" in msg.trailing.lower()
                                   or "improperly formatted auth" in msg.trailing.lower()):
             log.error("Twitch odmítl přihlášení – zkusím obnovit token.", **_l("error"))
@@ -211,6 +211,17 @@ class BotRunner(threading.Thread):
             self._chat_event(ev)
             self.engine.handle_event(ev)
 
+    def _update_me(self, tags: dict, channel: bool) -> None:
+        display = tags.get("display-name", "")
+        if display:
+            self.me["display"] = display
+            if self.login:
+                self.detector.set_identity(self.login, display)
+        if tags.get("color"):
+            self.me["color"] = tags["color"]
+        if channel:                       # odznaky v tomhle kanálu (sub, VIP…)
+            self.me["badges"] = sorted(parse_badges(tags.get("badges", "")))
+
     def _chat_event(self, ev: ChatEvent) -> None:
         """Pošle zprávu do záložky Chat v GUI (neukládá se nikam)."""
         if ev.kind not in ("privmsg", "announcement"):
@@ -219,12 +230,14 @@ class BotRunner(threading.Thread):
         self._ui(("chat", {
             "ts": ev.ts, "name": ev.display or ev.login, "login": ev.login,
             "color": ev.tags.get("color", ""), "badges": sorted(ev.badges), "text": ev.text,
-            "kind": ev.kind, "own": False, "shared": bool(src and room and src != room),
+            "kind": ev.kind, "own": bool(self.login) and ev.login == self.login,
+            "shared": bool(src and room and src != room),
         }))
 
     def _own_chat(self, text: str, auto: bool) -> None:
-        self._ui(("chat", {"ts": time.time(), "name": self.login, "login": self.login, "color": "",
-                           "badges": [], "text": pretty(text), "kind": "privmsg", "own": True,
+        self._ui(("chat", {"ts": time.time(), "name": self.me["display"] or self.login, "login": self.login,
+                           "color": self.me["color"], "badges": self.me["badges"],
+                           "text": pretty(text), "kind": "privmsg", "own": True,
                            "auto": auto, "shared": False}))
 
     async def _send_manual(self, text: str) -> None:

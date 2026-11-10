@@ -334,3 +334,16 @@ def test_old_config_is_migrated(tmp_path, monkeypatch):
     cfg = Config.load()
     assert cfg.max_entry_messages == 7 and "nightbot" in cfg.giveaway_bots
     assert cfg.armed_duration_s >= 7200 and cfg.dry_run is False and cfg.config_version == 2
+
+
+def test_old_logs_are_cleaned_up(tmp_path):
+    from app.logsetup import cleanup_old_logs
+    names = ["2026-11-06.log", "raw-2026-11-06.log", "2026-11-07.log", "raw-2026-11-08.log",
+             "2026-11-09.log", "raw-2026-11-10.log", "2026-11-10.log", "notes.txt"]
+    for n in names:
+        (tmp_path / n).write_text("x")
+    removed = cleanup_old_logs(3, str(tmp_path), today="2026-11-10")
+    assert sorted(removed) == ["2026-11-06.log", "2026-11-07.log", "raw-2026-11-06.log"]
+    assert sorted(p.name for p in tmp_path.iterdir()) == [
+        "2026-11-09.log", "2026-11-10.log", "notes.txt", "raw-2026-11-08.log", "raw-2026-11-10.log"]
+    assert cleanup_old_logs(0, str(tmp_path), today="2030-01-01") == []      # 0 = nikdy nemazat

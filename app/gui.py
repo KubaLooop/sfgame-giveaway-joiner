@@ -96,7 +96,7 @@ class App(ctk.CTk):
         self.device_dialog = None
         self._restart_pending = False
 
-        logsetup.setup(gui_queue=self.q)
+        logsetup.setup(gui_queue=self.q, retention_days=cfg.log_retention_days)
         self.title(f"SFGame Giveaway Joiner v{APP_VERSION}")
         self.geometry("860x680")
         self.minsize(700, 520)
@@ -276,6 +276,7 @@ class App(ctk.CTk):
         entry("command_bots", "Command boti (čárkou)")
         check("dedupe_suffix", "Střídat zprávu s neviditelným znakem (obchází Twitch filtr duplicit)")
         check("raw_log", "Ukládat celý chat (raw log) – pro ladění")
+        entry("log_retention_days", "Mazat logy starší než (dní, 0 = nikdy)")
         self.box_blacklist = box("Commandy, které nikdy nejsou GA (čárkou)", ", ".join(self.cfg.command_blacklist), 80)
         self.box_learned = box("Automaticky naučené commandy (smaž, pokud je tam omylem GA slovo)",
                                ", ".join(sorted(load_learned())), 60)

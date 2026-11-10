@@ -33,7 +33,8 @@ Podrobný návod pro neprogramátory na jednu stránku: **[docs/Navod.pdf](docs/
 - Statistiky (celkem i po dnech), přihlášení a nastavení přežijí restart.
 
 Data: `%APPDATA%\SfgGiveaway\` – `config.json`, `stats.json`, `phrases.txt`, `learned_commands.json`,
-`token.json` a `logs\` (denní log událostí + volitelně raw chat pro ladění).
+`token.json` a `logs\` (denní log událostí + volitelně raw chat pro ladění). Logy starší než 3 dny
+se automaticky mažou (nastavitelné, 0 = nikdy); statistiky a nastavení zůstávají.
 
 > ⚠️ Automatické zapojování může být proti pravidlům giveawaye a moderátoři za to můžou dát timeout/ban.
 > Používej na vlastní riziko.

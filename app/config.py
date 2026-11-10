@@ -7,7 +7,7 @@ import sys
 from dataclasses import asdict, dataclass, field, fields
 
 APP_NAME = "SfgGiveaway"
-APP_VERSION = "1.1.0"
+APP_VERSION = "1.1.1"
 CONFIG_VERSION = 2
 
 # Client ID z https://dev.twitch.tv/console/apps (Client type: Public).
@@ -79,6 +79,7 @@ class Config:
     closed_regex: str = r"giveaway\s*(\d+)\s*/\s*(\d+)\s*closed"
 
     raw_log: bool = True
+    log_retention_days: int = 3        # starší logy se automaticky mažou (0 = nikdy)
 
     # ------------------------------------------------------------------
     @classmethod

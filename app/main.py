@@ -35,7 +35,7 @@ def main(argv=None) -> int:
         return 0
 
     if args.cli:
-        logsetup.setup(console=True)
+        logsetup.setup(console=True, retention_days=cfg.log_retention_days)
         from .auth import TokenStore
         from .bot import BotRunner
         cfg.dry_run = not args.live
